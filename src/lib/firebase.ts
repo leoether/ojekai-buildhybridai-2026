@@ -51,21 +51,21 @@ export function getFirebaseApp(): FirebaseApp | undefined {
 
   app = initializeApp(firebaseConfig);
 
-  // App Check attestation is optional here: when the console enforces App
-  // Check AND a reCAPTCHA site key is configured, initialize it; otherwise
-  // the Firebase AI Logic calls still work while enforcement is off.
-  // (The guided AI Logic setup in the console turns enforcement on — at
-  // that point set VITE_FIREBASE_RECAPTCHA_SITE_KEY and register the debug
-  // token for localhost.)
+  // App Check attestation: the console enforces App Check for AI Logic,
+  // and ojekai-web is registered with the Fraud Defense (reCAPTCHA
+  // Enterprise) provider — so the app MUST use ReCaptchaEnterpriseProvider
+  // with the Enterprise site key. (The old reCAPTCHA v3 Classic provider
+  // is deprecated and its registration is disabled in the console; a v3
+  // token against an Enterprise registration is rejected with 401.)
   const siteKey = import.meta.env
     .VITE_FIREBASE_RECAPTCHA_SITE_KEY as string | undefined;
   if (siteKey) {
     void import('firebase/app-check')
-      .then(({ ReCaptchaV3Provider }) => {
+      .then(({ ReCaptchaEnterpriseProvider }) => {
         if (app) {
           try {
             initializeAppCheck(app, {
-              provider: new ReCaptchaV3Provider(siteKey),
+              provider: new ReCaptchaEnterpriseProvider(siteKey),
               isTokenAutoRefreshEnabled: true,
             });
           } catch {
