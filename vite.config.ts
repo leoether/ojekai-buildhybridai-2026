@@ -3,5 +3,7 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // GitHub Pages serves the site under /ojekai-buildhybridai-2026/
+  base: '/ojekai-buildhybridai-2026/',
   plugins: [react()],
 })
