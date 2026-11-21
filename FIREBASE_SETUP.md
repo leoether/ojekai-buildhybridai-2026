@@ -49,10 +49,28 @@ VITE_FIREBASE_APP_ID=...
 public client identifier, not a secret, but keeping it in `.env` keeps the
 repo project-agnostic.)
 
-## Step 4 — App Check debug token (for localhost only)
+## Step 4 — App Check (production: reCAPTCHA Enterprise; localhost: debug token)
 
-Because the AI Logic setup enforces App Check, local development needs a
-debug token:
+The AI Logic guided setup enforces App Check, so every AI call needs a
+valid App Check token.
+
+**Production (deployed site): reCAPTCHA Enterprise.** The old reCAPTCHA v3
+Classic registration is deprecated in the Firebase console (its field is
+disabled). Use Fraud Defense / reCAPTCHA Enterprise instead — free tier,
+no billing:
+
+1. Google Cloud Console → **Security → Fraud Defense → reCAPTCHA keys** →
+   create a key, type **Website**, domains `leoether.github.io` and
+   `localhost`. Copy the **site key**.
+2. Firebase console → **Security → App Check → Apps** → `ojekai-web` →
+   register with the **Fraud Defense (reCAPTCHA Enterprise)** provider,
+   pasting the Enterprise site key. Enforcement for Firebase AI Logic
+   stays ON.
+3. Put the site key in `.env` as `VITE_FIREBASE_RECAPTCHA_SITE_KEY=...`
+   (the app's `src/lib/firebase.ts` initializes App Check with it).
+   Rebuild + redeploy after adding it.
+
+**Localhost only: debug token.** Local development needs a debug token:
 
 1. Run `npm run dev` and open the app at http://localhost:5173.
 2. Open the browser DevTools console. You will see a line like:
