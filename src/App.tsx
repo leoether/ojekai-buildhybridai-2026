@@ -6,6 +6,7 @@ import {
   summarizeTrip,
 } from './lib/ai';
 import type { AiResult } from './lib/ai';
+import { checkAppCheckToken } from './lib/firebase';
 import {
   formatRp,
   loadTrips,
@@ -48,6 +49,7 @@ export default function App() {
   const [reportBusy, setReportBusy] = useState(false);
   const [error, setError] = useState('');
   const [deviceStatus, setDeviceStatus] = useState('mengecek…');
+  const [appCheckStatus, setAppCheckStatus] = useState('mengecek…');
 
   const configured = isAiConfigured();
   const today = todayString();
@@ -70,10 +72,24 @@ export default function App() {
     checkOnDeviceAvailability().then((status) => {
       if (alive) setDeviceStatus(status);
     });
+    if (configured) {
+      checkAppCheckToken()
+        .then((status) => {
+          if (alive) setAppCheckStatus(status);
+        })
+        .catch((err: unknown) => {
+          if (alive)
+            setAppCheckStatus(
+              `gagal: ${err instanceof Error ? err.message : 'error tidak diketahui'}`,
+            );
+        });
+    } else {
+      setAppCheckStatus('mode demo');
+    }
     return () => {
       alive = false;
     };
-  }, []);
+  }, [configured]);
 
   useEffect(() => {
     saveTrips(trips);
@@ -173,6 +189,7 @@ export default function App() {
             Firebase: {configured ? 'terhubung' : 'mode demo'}
           </span>
           <span className="pill">On-device (Gemini Nano): {deviceStatus}</span>
+          <span className="pill">App Check: {appCheckStatus}</span>
         </div>
         {!configured && (
           <p className="demo-note">

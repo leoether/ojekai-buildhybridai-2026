@@ -12,7 +12,8 @@
 
 import { initializeApp } from 'firebase/app';
 import type { FirebaseApp } from 'firebase/app';
-import { initializeAppCheck } from 'firebase/app-check';
+import { getToken, initializeAppCheck } from 'firebase/app-check';
+import type { AppCheck } from 'firebase/app-check';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
@@ -34,6 +35,10 @@ export function isFirebaseConfigured(): boolean {
 }
 
 let app: FirebaseApp | undefined;
+// Promise for the App Check initialization (resolves to the instance, or
+// undefined when no site key is configured). Diagnostics await this so
+// they test the real initialized provider instead of racing it.
+let appCheckReady: Promise<AppCheck | undefined> | undefined;
 
 export function getFirebaseApp(): FirebaseApp | undefined {
   if (!isFirebaseConfigured()) return undefined;
@@ -60,23 +65,40 @@ export function getFirebaseApp(): FirebaseApp | undefined {
   const siteKey = import.meta.env
     .VITE_FIREBASE_RECAPTCHA_SITE_KEY as string | undefined;
   if (siteKey) {
-    void import('firebase/app-check')
+    appCheckReady = import('firebase/app-check')
       .then(({ ReCaptchaEnterpriseProvider }) => {
-        if (app) {
-          try {
-            initializeAppCheck(app, {
-              provider: new ReCaptchaEnterpriseProvider(siteKey),
-              isTokenAutoRefreshEnabled: true,
-            });
-          } catch {
-            // App Check already initialized or provider rejected — non-fatal.
-          }
+        if (!app) return undefined;
+        try {
+          return initializeAppCheck(app, {
+            provider: new ReCaptchaEnterpriseProvider(siteKey),
+            isTokenAutoRefreshEnabled: true,
+          });
+        } catch {
+          // App Check already initialized by another call — no instance
+          // is reachable here, so diagnostics report it as uninitialized.
+          return undefined;
         }
       })
-      .catch(() => {
-        // app-check module unavailable — non-fatal for demo/dev.
-      });
+      .catch(() => undefined);
+  } else {
+    appCheckReady = Promise.resolve(undefined);
   }
 
   return app;
+}
+
+/**
+ * Diagnostic: try to fetch a fresh App Check token and report the outcome.
+ * Returns 'OK' when a token is issued, otherwise throws an Error whose
+ * message carries the SDK error code (e.g. 'app-check/recaptcha-error').
+ * This distinguishes "no token could be obtained in the browser" from
+ * "a token was issued but the AI endpoint rejected it (401)".
+ */
+export async function checkAppCheckToken(): Promise<string> {
+  const firebaseApp = getFirebaseApp();
+  if (!firebaseApp) return 'tidak dikonfigurasi';
+  const appCheck = await (appCheckReady ?? Promise.resolve(undefined));
+  if (!appCheck) return 'tidak diinisialisasi (tanpa site key?)';
+  const token = await getToken(appCheck, false);
+  return token.token ? 'OK' : 'token kosong';
 }

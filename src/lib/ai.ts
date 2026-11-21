@@ -19,7 +19,7 @@
 import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
 import { InferenceMode } from 'firebase/ai';
 import type { GenerativeModel } from 'firebase/ai';
-import { getFirebaseApp, isFirebaseConfigured } from './firebase';
+import { checkAppCheckToken, getFirebaseApp, isFirebaseConfigured } from './firebase';
 import { formatRp } from './trips';
 import type { InferenceSource, Trip } from './trips';
 
@@ -91,11 +91,26 @@ async function ensureDeviceModel(model: GenerativeModel): Promise<void> {
   }
 }
 
+/** Pre-flight: fetch a fresh App Check token before any AI call.
+ *  If this throws, the failure is in the browser (token could not be
+ *  obtained) — distinct from a 401 from the AI endpoint (a token was
+ *  issued but the server rejected it). */
+async function ensureAppCheckToken(): Promise<void> {
+  try {
+    await checkAppCheckToken();
+  } catch (err) {
+    throw new Error(
+      `App Check: gagal ambil token (${err instanceof Error ? err.message : 'error tidak diketahui'})`,
+    );
+  }
+}
+
 /** Short trip summary — prefers the on-device model (Gemini Nano). */
 export async function summarizeTrip(trip: Trip): Promise<AiResult> {
   const models = getModels();
   if (!models) return { text: demoTripSummary(trip), source: 'DEMO' };
 
+  await ensureAppCheckToken();
   await ensureDeviceModel(models.onDevice);
   const prompt =
     `Ringkas trip ojek ini dalam 1-2 kalimat Bahasa Indonesia. ` +
@@ -118,6 +133,7 @@ export async function buildDailyReport(
   const models = getModels();
   if (!models) return { text: demoDailyReport(trips, dateLabel), source: 'DEMO' };
 
+  await ensureAppCheckToken();
   const totalFare = trips.reduce((s, t) => s + t.fare, 0);
   const totalKm = trips.reduce((s, t) => s + t.distanceKm, 0);
   const lines = trips
